@@ -4,4 +4,4 @@ Scans a GitHub profile to check if all repositories have a description, readme, 
 
 ## Demo
 
-![GitHub Profile Scanner Demo](/demo.mp4)
+![GitHub Profile Scanner Demo](/demo.gif)
