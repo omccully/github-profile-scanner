@@ -81,7 +81,6 @@ func main() {
 		println("Using unauthenticated client")
 	}
 
-	// list all repositories for the authenticated user
 	repos, _, err := client.Repositories.List(ctx, username, nil)
 
 	if err != nil {
@@ -110,7 +109,7 @@ func main() {
 		r.WriteString(headerStyle.Render(headerTextRendering + headerDateRendering))
 
 		description := repo.GetDescription()
-		if description == "" {
+		if len(description) < 5 {
 			r.WriteRune('\n')
 			r.WriteString(redTextStyle.Render("✕ No description"))
 
