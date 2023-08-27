@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -24,7 +25,6 @@ func main() {
 		BorderBottom(true)
 
 	var dialogLineStyle = lipgloss.NewStyle().
-		// Align(lipgloss.Left).
 		Width(77)
 
 	var headerStyle = lipgloss.NewStyle().
@@ -32,6 +32,13 @@ func main() {
 		Bold(true).
 		Foreground(lipgloss.Color("#FAFAFA")).
 		Background(lipgloss.Color("#7D56F4"))
+	var headerTitleStyle = lipgloss.NewStyle().
+		Padding(0, 0, 0, 1).
+		Width(50)
+	var headerDateStyle = lipgloss.NewStyle().
+		Width(27).
+		Padding(0, 1, 0, 0).
+		Align(lipgloss.Right)
 
 	var redTextStyle = lipgloss.NewStyle().
 		Inherit(dialogLineStyle).
@@ -43,9 +50,10 @@ func main() {
 		Bold(true).
 		Foreground(lipgloss.Color("#00FF00"))
 
-	// str := "Description: (Unfinished) One man's junk is another man's treasure. This 102934rj90sad90sdjv aosdfjaisdofj  ajo sjo d"
-	// str = dialogLineStyle.Render(str)
-	// println(dialogBoxStyle.Render(str))
+	var orangeTextStyle = lipgloss.NewStyle().
+		Inherit(dialogLineStyle).
+		Bold(true).
+		Foreground(lipgloss.Color("#FFA500"))
 
 	githubToken, githubTokenSet := os.LookupEnv("GITHUB_API_TOKEN")
 
@@ -82,8 +90,14 @@ func main() {
 	}
 
 	missingDescriptionCount := 0
-	missiongReadmeCount := 0
+	missingReadmeCount := 0
+	shortReadmeCount := 0
 	missingImageCount := 0
+	masterBranchCount := 0
+
+	sort.SliceStable(repos, func(i, j int) bool {
+		return repos[i].GetUpdatedAt().Before(repos[j].GetUpdatedAt().Time)
+	})
 
 	for _, repo := range repos {
 		if *repo.Fork {
@@ -91,44 +105,66 @@ func main() {
 		}
 
 		r := strings.Builder{}
-		r.WriteString(headerStyle.Render(*repo.Name))
-		r.WriteRune('\n')
+		headerTextRendering := headerTitleStyle.Render(fmt.Sprintf("%s (%s)", *repo.Name, *repo.Language))
+		headerDateRendering := headerDateStyle.Render("Last updated", repo.GetUpdatedAt().Format("2006-01-02"))
+		r.WriteString(headerStyle.Render(headerTextRendering + headerDateRendering))
 
 		description := repo.GetDescription()
 		if description == "" {
-			r.WriteString(redTextStyle.Render(fmt.Sprintf("✕ No description for %s", *repo.Name)))
 			r.WriteRune('\n')
+			r.WriteString(redTextStyle.Render("✕ No description"))
+
 			missingDescriptionCount++
 		} else {
-			r.WriteString(greenTextStyle.Render(fmt.Sprintf("✓ Description: %s", description)))
 			r.WriteRune('\n')
+			r.WriteString(greenTextStyle.Render(fmt.Sprintf("✓ Description: %s", description)))
 		}
 
-		// defaultBranch := repo.GetDefaultBranch()
-		// println(defaultBranch)
+		defaultBranch := repo.GetDefaultBranch()
+		if defaultBranch == "master" {
+			r.WriteRune('\n')
+			r.WriteString(orangeTextStyle.Render("✕ Default branch is master"))
+			masterBranchCount++
+		} else {
+			r.WriteRune('\n')
+			r.WriteString(greenTextStyle.Render(fmt.Sprintf("✓ Default branch is %s", defaultBranch)))
+		}
 
 		readmeContent, _, _, err := client.Repositories.GetContents(ctx, username, *repo.Name, "README.md", nil)
 		if err != nil {
-			r.WriteString(redTextStyle.Render(fmt.Sprintf("✕ No README.md for %s", *repo.Name)))
 			r.WriteRune('\n')
-			missiongReadmeCount++
+			r.WriteString(redTextStyle.Render("✕ No README.md"))
+
+			missingReadmeCount++
 			missingImageCount++
 		} else {
-			r.WriteString(greenTextStyle.Render("✓ README.md"))
 			r.WriteRune('\n')
+			r.WriteString(greenTextStyle.Render("✓ README.md"))
 
 			readmeContentText, err := readmeContent.GetContent()
 
 			if err != nil {
 				r.WriteString(redTextStyle.Render("Error getting readme content: " + err.Error()))
 				missingImageCount++
-			} else if strings.Contains(readmeContentText, "![") {
-				r.WriteString(greenTextStyle.Render("✓ Image in README.md"))
-				r.WriteRune('\n')
+				shortReadmeCount++
 			} else {
-				r.WriteString(redTextStyle.Render("✕ No image in README.md"))
-				r.WriteRune('\n')
-				missingImageCount++
+				if strings.Contains(readmeContentText, "![") {
+					r.WriteRune('\n')
+					r.WriteString(greenTextStyle.Render("✓ Image in README.md"))
+				} else {
+					r.WriteRune('\n')
+					r.WriteString(redTextStyle.Render("✕ No image in README.md"))
+					missingImageCount++
+				}
+
+				if len(readmeContentText) < 100 {
+					r.WriteRune('\n')
+					r.WriteString(redTextStyle.Render(fmt.Sprintf("✕ README.md is too short (%d characters)", len(readmeContentText))))
+					shortReadmeCount++
+				} else {
+					r.WriteRune('\n')
+					r.WriteString(greenTextStyle.Render(fmt.Sprintf("✓ README.md is long enough (%d characters)", len(readmeContentText))))
+				}
 			}
 
 		}
@@ -144,8 +180,8 @@ func main() {
 		println(greenTextStyle.Render("All repositories have descriptions"))
 	}
 
-	if missiongReadmeCount > 0 {
-		println(redTextStyle.Render(fmt.Sprintf("%d repositories missing README.md", missiongReadmeCount)))
+	if missingReadmeCount > 0 {
+		println(redTextStyle.Render(fmt.Sprintf("%d repositories missing README.md", missingReadmeCount)))
 	} else {
 		println(greenTextStyle.Render("All repositories have README.md"))
 	}
@@ -155,6 +191,19 @@ func main() {
 	} else {
 		println(greenTextStyle.Render("All repositories have images"))
 	}
+
+	if shortReadmeCount > 0 {
+		println(redTextStyle.Render(fmt.Sprintf("%d repositories have a short README.md", shortReadmeCount)))
+	} else {
+		println(greenTextStyle.Render("All repositories have a long-enough README.md"))
+	}
+
+	if masterBranchCount > 0 {
+		println(orangeTextStyle.Render(fmt.Sprintf("%d repositories have master as default branch", masterBranchCount)))
+	} else {
+		println(greenTextStyle.Render("All repositories have non-master default branch"))
+	}
+
 	fmt.Printf("of %d repositories\n", len(repos))
 
 }
