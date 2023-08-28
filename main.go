@@ -152,11 +152,11 @@ func main() {
 					r.WriteString(greenTextStyle.Render("✓ Image in README.md"))
 				} else {
 					r.WriteRune('\n')
-					r.WriteString(redTextStyle.Render("✕ No image in README.md"))
+					r.WriteString(orangeTextStyle.Render("✕ No image in README.md"))
 					missingImageCount++
 				}
 
-				if len(readmeContentText) < 100 {
+				if len(readmeContentText) < 200 {
 					r.WriteRune('\n')
 					r.WriteString(redTextStyle.Render(fmt.Sprintf("✕ README.md is too short (%d characters)", len(readmeContentText))))
 					shortReadmeCount++
@@ -186,7 +186,7 @@ func main() {
 	}
 
 	if missingImageCount > 0 {
-		println(redTextStyle.Render(fmt.Sprintf("%d repositories missing images", missingImageCount)))
+		println(orangeTextStyle.Render(fmt.Sprintf("%d repositories missing images", missingImageCount)))
 	} else {
 		println(greenTextStyle.Render("All repositories have images"))
 	}
